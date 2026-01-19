@@ -1,4 +1,12 @@
+use std::fmt::{self, Debug, Display};
 use std::mem::MaybeUninit;
+use std::str::FromStr;
+
+use crate::base58;
+use crate::error::TVResult;
+
+const KEY_SECRET_DER_LENGTH: usize = 51;
+const KEY_SECRET_DER_BASE58_LENGTH: usize = base58::encode_length(KEY_SECRET_DER_LENGTH);
 
 /// A secret key used for signing transactions in Tashi Vertex.
 #[repr(C)]
@@ -22,9 +30,76 @@ impl KeySecret {
             key.assume_init()
         }
     }
+
+    /// Parses a secret key from DER format.
+    pub fn from_der(der: &[u8]) -> crate::Result<Self> {
+        let mut key = MaybeUninit::<Self>::uninit();
+
+        // Parse the DER-encoded key
+        let res = unsafe { tv_key_secret_from_der(der.as_ptr(), der.len(), key.as_mut_ptr()) };
+        res.ok(())?;
+
+        // SAFE: tv_key_secret_from_der returns ok only if the structure is initialized
+        Ok(unsafe { key.assume_init() })
+    }
+
+    /// Formats the secret key to DER format.
+    pub fn to_der(&self, output: &mut [u8]) -> crate::Result<()> {
+        let res = unsafe {
+            // FIXME: output length should be an in/out parameter
+            tv_key_secret_to_der(self, output.as_mut_ptr(), output.len())
+        };
+
+        res.ok(())
+    }
+
+    /// Formats the secret key to DER format.
+    pub fn to_der_vec(&self) -> crate::Result<Vec<u8>> {
+        let mut output = vec![0u8; KEY_SECRET_DER_LENGTH];
+
+        self.to_der(&mut output)?;
+
+        Ok(output)
+    }
+
+    /// Formats the secret key to DER format.
+    fn with_der<R>(&self, callback: impl FnOnce(&[u8]) -> R) -> crate::Result<R> {
+        let mut output = vec![0u8; KEY_SECRET_DER_LENGTH];
+
+        self.to_der(&mut output)?;
+
+        Ok(callback(&output))
+    }
+}
+
+impl Debug for KeySecret {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "\"{self}\"")
+    }
+}
+
+impl Display for KeySecret {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.with_der(|der| {
+            base58::with_encoded::<KEY_SECRET_DER_BASE58_LENGTH, _>(der, |s| f.pad(s)).unwrap()
+        })
+        .unwrap()
+    }
+}
+
+impl FromStr for KeySecret {
+    type Err = crate::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        base58::with_decoded::<KEY_SECRET_DER_LENGTH, _>(s.as_bytes(), KeySecret::from_der)?
+    }
 }
 
 #[link(name = "tashi_vertex")]
 unsafe extern "C" {
     fn tv_key_secret_generate(secret: *mut KeySecret);
+
+    fn tv_key_secret_to_der(secret: *const KeySecret, der: *mut u8, der_len: usize) -> TVResult;
+
+    fn tv_key_secret_from_der(der: *const u8, der_len: usize, secret: *mut KeySecret) -> TVResult;
 }

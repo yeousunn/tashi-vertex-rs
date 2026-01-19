@@ -9,3 +9,7 @@ edition = "2024"
 anyhow = "1.0.100"
 cmake = "0.1.57"
 copy_to_output = "2.2.0"
+
+[dev-dependencies]
+anyhow = "1.0.100"
+clap = { version = "4", features = ["derive"] }
