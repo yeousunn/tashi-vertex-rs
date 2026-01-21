@@ -2,8 +2,8 @@ use std::fmt::{self, Debug, Display};
 use std::mem::MaybeUninit;
 use std::str::FromStr;
 
-use crate::base58;
 use crate::error::TVResult;
+use crate::{KeyPublic, base58};
 
 const KEY_SECRET_DER_LENGTH: usize = 51;
 const KEY_SECRET_DER_BASE58_LENGTH: usize = base58::encode_length(KEY_SECRET_DER_LENGTH);
@@ -29,6 +29,19 @@ impl KeySecret {
             // SAFE: tv_key_secret_generate cannot return without initializing the structure
             key.assume_init()
         }
+    }
+
+    /// Derives the corresponding public key from this secret key.
+    pub fn public(&self) -> KeyPublic {
+        let mut public = MaybeUninit::<KeyPublic>::uninit();
+
+        let res = unsafe { tv_key_secret_to_public(self, public.as_mut_ptr()) };
+
+        // PANIC: can only return not ok if the pointer to secret is null
+        res.ok(()).unwrap();
+
+        // SAFE: tv_key_secret_to_public returns ok only if the structure is initialized
+        unsafe { public.assume_init() }
     }
 
     /// Parses a secret key from DER format.
@@ -95,9 +108,10 @@ impl FromStr for KeySecret {
     }
 }
 
-#[link(name = "tashi_vertex")]
 unsafe extern "C" {
     fn tv_key_secret_generate(secret: *mut KeySecret);
+
+    fn tv_key_secret_to_public(secret: *const KeySecret, public: *mut KeyPublic) -> TVResult;
 
     fn tv_key_secret_to_der(secret: *const KeySecret, der: *mut u8, der_len: usize) -> TVResult;
 

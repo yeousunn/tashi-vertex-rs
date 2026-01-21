@@ -88,14 +88,7 @@ pub(crate) fn with_decoded<const N: usize, R>(
     // FIXME: update usage once this returns actual length
     decode(input, &mut output)?;
 
-    // find nul termination and truncate
-    let output = if let Some(nul) = output.iter().position(|&b| b == 0) {
-        &output[..nul]
-    } else {
-        &output[..]
-    };
-
-    Ok(callback(output))
+    Ok(callback(&output[..]))
 }
 
 /// Decodes a Base58 string into a byte array.
@@ -104,11 +97,6 @@ pub fn decode_to_vec(input: &[u8]) -> crate::Result<Vec<u8>> {
 
     // FIXME: update usage once this returns actual length
     decode(input, &mut output)?;
-
-    // find nul termination and truncate
-    if let Some(nul) = output.iter().position(|&b| b == 0) {
-        output.truncate(nul);
-    }
 
     Ok(output)
 }
