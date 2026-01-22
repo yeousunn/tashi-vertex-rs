@@ -2,7 +2,7 @@ use std::str::FromStr;
 
 use anyhow::anyhow;
 use clap::Parser;
-use tashi_vertex::{KeyPublic, KeySecret, Peers};
+use tashi_vertex::{Context, KeyPublic, KeySecret, Peers};
 
 #[derive(Debug, Clone)]
 struct PeerArg {
@@ -52,6 +52,13 @@ fn main() -> anyhow::Result<()> {
     peers.insert(&args.bind, &key.public(), Default::default())?;
 
     println!(" :: Configured network for {} peers", args.peers.len() + 1);
+
+    // initialize a new Tashi Vertex (TV) context
+    // manages async. operations and resources
+    // allows for operations to complete
+    let context = Context::new()?;
+
+    println!(" :: Initialized runtime");
 
     Ok(())
 }
