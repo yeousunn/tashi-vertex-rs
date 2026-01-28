@@ -2,7 +2,7 @@ use std::str::FromStr;
 
 use anyhow::anyhow;
 use clap::Parser;
-use tashi_vertex::{Context, KeyPublic, KeySecret, Peers};
+use tashi_vertex::{Context, KeyPublic, KeySecret, Peers, Socket};
 
 #[derive(Debug, Clone)]
 struct PeerArg {
@@ -37,7 +37,8 @@ struct Args {
     pub peers: Vec<PeerArg>,
 }
 
-fn main() -> anyhow::Result<()> {
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
     let args = Args::parse();
     let key = args.key.parse::<KeySecret>()?;
 
@@ -59,6 +60,11 @@ fn main() -> anyhow::Result<()> {
     let context = Context::new()?;
 
     println!(" :: Initialized runtime");
+
+    // bind a new socket to listen for incoming connections in the network
+    let socket = Socket::bind(&context, &args.bind).await?;
+
+    println!(" :: Bound local socket");
 
     Ok(())
 }

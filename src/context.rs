@@ -11,7 +11,7 @@ use crate::ptr::Pointer;
 /// internal state and configuration required for operations.
 ///
 pub struct Context {
-    handle: Pointer<TVContext>,
+    pub(crate) handle: Pointer<TVContext>,
 }
 
 impl Context {
@@ -28,7 +28,7 @@ impl Context {
     }
 }
 
-type TVContext = c_void;
+pub(crate) type TVContext = c_void;
 
 unsafe extern "C" {
     fn tv_context_new(context: *mut Pointer<TVContext>) -> TVResult;
