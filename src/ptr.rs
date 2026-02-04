@@ -7,7 +7,13 @@ pub struct Pointer<T> {
 }
 
 impl<T> Pointer<T> {
-    pub unsafe fn as_ptr(&self) -> *mut T {
+    pub unsafe fn from_ptr_unchecked(ptr: *mut T) -> Self {
+        Self {
+            ptr: unsafe { NonNull::new_unchecked(ptr) },
+        }
+    }
+
+    pub const fn as_ptr(&self) -> *mut T {
         self.ptr.as_ptr()
     }
 }

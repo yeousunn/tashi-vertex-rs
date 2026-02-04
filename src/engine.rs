@@ -3,11 +3,12 @@ use std::os::raw::c_void;
 
 use crate::context::TVContext;
 use crate::error::TVResult;
+use crate::message::Message;
 use crate::options::TVOptions;
 use crate::peers::TVPeers;
 use crate::ptr::Pointer;
 use crate::socket::TVSocket;
-use crate::{Context, KeySecret, Options, Peers, Socket};
+use crate::{Context, KeySecret, Options, Peers, Socket, Transaction};
 
 /// Handle for the Tashi Vertex (TV) engine.
 pub struct Engine {
@@ -23,9 +24,9 @@ impl Engine {
         secret: &KeySecret,
         peers: Peers,
     ) -> crate::Result<Self> {
-        let mut socket_ptr = unsafe { socket.handle.as_ptr() };
-        let mut options_ptr = unsafe { options.handle.as_ptr() };
-        let mut peers_ptr = unsafe { peers.handle.as_ptr() };
+        let mut socket_ptr = socket.handle.as_ptr();
+        let mut options_ptr = options.handle.as_ptr();
+        let mut peers_ptr = peers.handle.as_ptr();
 
         // ownership of these pointers is transferred to the engine
         mem::forget(socket);
@@ -49,6 +50,16 @@ impl Engine {
         let handle = unsafe { handle.assume_init() };
 
         Ok(Self { handle })
+    }
+
+    /// Listens for the next incoming message on the given engine.
+    pub async fn recv_message(&self) -> crate::Result<Option<Message>> {
+        Message::recv(self).await
+    }
+
+    /// Sends a transaction to the network.
+    pub fn send_transaction(&self, transaction: Transaction) -> crate::Result<()> {
+        transaction.send(self)
     }
 }
 

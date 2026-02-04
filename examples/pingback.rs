@@ -1,8 +1,10 @@
-use std::str::FromStr;
+use std::str::{FromStr, from_utf8};
 
 use anyhow::anyhow;
 use clap::Parser;
-use tashi_vertex::{Context, Engine, KeyPublic, KeySecret, Options, Peers, Socket};
+use tashi_vertex::{
+    Context, Engine, KeyPublic, KeySecret, Message, Options, Peers, Socket, Transaction,
+};
 
 #[derive(Debug, Clone)]
 struct PeerArg {
@@ -77,5 +79,47 @@ async fn main() -> anyhow::Result<()> {
 
     println!(" :: Started the consensus engine");
 
+    // send an initial PING transaction
+    send_transaction_cstr(&engine, "PING")?;
+
+    // start waiting for messages
+    while let Some(message) = engine.recv_message().await? {
+        match message {
+            Message::Event(event) => {
+                if event.transaction_count() > 0 {
+                    println!(" > Received EVENT");
+
+                    // Print event metadata
+                    println!("    - From: {}", event.creator());
+                    println!("    - Created: {}", event.created_at());
+                    println!("    - Consensus: {}", event.consensus_at());
+                    println!("    - Transactions: {}", event.transaction_count());
+
+                    // Print each transaction
+                    for tx in event.transactions() {
+                        // All transactions are strings
+                        let tx_s = from_utf8(&tx)?;
+
+                        println!("    - >> {}", tx_s);
+                    }
+                }
+            }
+
+            Message::SyncPoint(_) => {
+                println!(" > Received SYNC POINT");
+            }
+        }
+    }
+
     Ok(())
+}
+
+/// Sends a string as a null-terminated transaction to the network.
+pub fn send_transaction_cstr(engine: &Engine, s: &str) -> tashi_vertex::Result<()> {
+    let mut transaction = Transaction::allocate(s.len() + 1);
+
+    transaction[..s.len()].copy_from_slice(s.as_bytes());
+    transaction[s.len()] = 0; // null-terminate
+
+    engine.send_transaction(transaction)
 }
