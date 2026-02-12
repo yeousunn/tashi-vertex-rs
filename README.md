@@ -30,7 +30,7 @@ cargo add tashi-vertex
 
 ### Build Requirements
 
-- **CMake** >= 3.14
+- **CMake** >= 4.0
 - The **Tashi Vertex** shared library (`libtashi-vertex.so` / `.dylib` / `.dll`), fetched automatically by the build script
 
 ## Quick Start
