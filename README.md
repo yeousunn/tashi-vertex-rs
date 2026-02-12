@@ -1,26 +1,124 @@
-# Tashi Vertex for Rust
+# Tashi Vertex
 
-Provides access to **Tashi Vertex** through a Rust interface.
+[![Crates.io](https://img.shields.io/crates/v/tashi-vertex)](https://crates.io/crates/tashi-vertex)
+[![docs.rs](https://img.shields.io/docsrs/tashi-vertex)](https://docs.rs/tashi-vertex)
+[![License](https://img.shields.io/crates/l/tashi-vertex)](./LICENSE)
 
-> **Tashi Vertex** is an embedded consensus engine _based on_ the [Hashgraph] algorithm.
+Rust bindings for **Tashi Vertex**, an embedded Byzantine fault-tolerant consensus engine based on the [Hashgraph] algorithm.
+
+Tashi Vertex uses a DAG (Directed Acyclic Graph) of cryptographically signed events and virtual voting to achieve consensus finality in under 100 milliseconds — without exchanging explicit vote messages. For a detailed explanation, see the [Vertex whitepaper].
 
 [Hashgraph]: https://hedera.com/hh-ieee_coins_paper-200516.pdf
+[Vertex whitepaper]: https://docs.tashi.network/whitepaper/whitepaper/technical-appendices/consensus-protocol
 
 ## Features
 
-_to be written_
+- **Fast BFT Consensus** — sub-100ms finality with tolerance up to `f = ⌊(n-1)/3⌋` Byzantine participants
+- **Async-first** — socket binding and message receiving are `Future`-based
+- **Zero runtime dependencies** — only links dynamically to the `tashi-vertex` C library
+- **Safe FFI** — opaque pointer wrappers with automatic cleanup via `Drop`
+- **Configurable** — 15+ tunable engine parameters (heartbeat, latency thresholds, epoch sizing, etc.)
+- **Base58 utilities** — encode/decode keys and binary data
 
-## Install
+## Installation
 
-_to be written_
+Add the crate to your project:
 
-## Usage
+```sh
+cargo add tashi-vertex
+```
 
-_to be written_
+### Build Requirements
+
+- **CMake** >= 3.14
+- The **Tashi Vertex** shared library (`libtashi-vertex.so` / `.dylib` / `.dll`), fetched automatically by the build script
+
+## Quick Start
+
+Generate a keypair for your node:
+
+```rust
+use tashi_vertex::KeySecret;
+
+let secret = KeySecret::generate();
+let public = secret.public();
+
+println!("Secret: {secret}"); // Base58-encoded DER
+println!("Public: {public}");
+```
+
+Run a minimal consensus network:
+
+```rust
+use tashi_vertex::{Context, Engine, KeySecret, Message, Options, Peers, Socket, Transaction};
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let key: KeySecret = "BASE58_SECRET_KEY".parse()?;
+
+    // Configure peers in the network
+    let mut peers = Peers::new()?;
+    peers.insert("127.0.0.1:9001", &"BASE58_PEER_PUBLIC_KEY".parse()?, Default::default())?;
+    peers.insert("127.0.0.1:9000", &key.public(), Default::default())?;
+
+    // Initialize the runtime and bind a socket
+    let context = Context::new()?;
+    let socket = Socket::bind(&context, "127.0.0.1:9000").await?;
+
+    // Start the consensus engine
+    let options = Options::default();
+    let engine = Engine::start(&context, socket, options, &key, peers)?;
+
+    // Send a transaction
+    let data = b"hello world";
+    let mut tx = Transaction::allocate(data.len());
+    tx.copy_from_slice(data);
+    engine.send_transaction(tx)?;
+
+    // Receive consensus-ordered messages
+    while let Some(message) = engine.recv_message().await? {
+        match message {
+            Message::Event(event) => {
+                for tx in event.transactions() {
+                    println!("tx: {:?}", tx);
+                }
+            }
+            Message::SyncPoint(_) => { /* session management */ }
+        }
+    }
+
+    Ok(())
+}
+```
+
+## API Overview
+
+| Type | Description |
+|---|---|
+| [`Engine`] | Starts and drives the consensus engine — send transactions and receive ordered messages |
+| [`Context`] | Runtime context managing async operations and resources |
+| [`Socket`] | Async network socket bound to a local address |
+| [`Options`] | Engine configuration (heartbeat, latency, epoch size, threading, etc.) |
+| [`Message`] | Received message — either an `Event` or a `SyncPoint` |
+| [`Event`] | A finalized event carrying consensus-ordered transactions |
+| [`Transaction`] | Allocated buffer for submitting data to the network |
+| [`KeySecret`] | Ed25519 secret key for signing (Base58/DER serializable) |
+| [`KeyPublic`] | Ed25519 public key for verification (Base58/DER serializable) |
+| [`Peers`] | Set of network participants with addresses and capabilities |
+| [`SyncPoint`] | Session management decision from the consensus layer |
+| [`base58`] | Base58 encoding/decoding utilities |
 
 ## Examples
 
-_to be written_
+The [`examples/`](./examples) directory contains runnable demos:
+
+- **`key-generate`** — Generate a new keypair
+- **`key-parse`** — Parse Base58-encoded keys
+- **`pingback`** — Full multi-peer consensus network with transaction exchange
+
+```sh
+cargo run --example key-generate
+```
 
 ## License
 
